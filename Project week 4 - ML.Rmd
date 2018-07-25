@@ -1,0 +1,82 @@
+---
+title: "Week 4 Project - ML"
+author: "Julia Borst"
+date: "25 7 2018"
+output: html_document
+---
+
+#Introduction
+
+#The goal of the project is  to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#The following steps are taken to build the best predictive model:
+#1. Getting and cleaning the data
+#2. Cross Validation
+#3. Model Building
+#4. Analysis of Accuracy
+#5. Predicting for the test set
+
+library(caret)
+# 1. Getting the data
+#Load the data and convert missings to N/A
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+
+
+# Remove columns that are not predictors
+
+#the first five columns include non-predicting values (names, timestamps, etc.)
+trainingPs <- training[,-(1:5)]
+
+# remove predictors without variance
+trainingPs <- trainingPs[,-nearZeroVar(trainingPs, saveMetrics = FALSE)]
+
+# remove columns with missing values 
+rem.columns <- names(which(colSums(is.na(trainingPs))>0))
+trainingPs <- trainingPs[, !(names(trainingPs) %in% rem.columns)]
+
+# 2. Cross Validation
+
+#Splitting the data into a training and validation set
+
+inTrain <- createDataPartition(y=trainingPs$classe, p=.7, list= FALSE)
+trainingSet <- trainingPs[inTrain,]
+validationSet <- trainingPs[-inTrain,]
+
+# Analysis of training and validation datasets
+
+CrossValSummary <- rbind(Original_data = dim(trainingPs), training_subset = dim(trainingSet), validation_subset = dim(validationSet))
+colnames(CrossValSummary) <- c("Observations", "Predictors")
+CrossValSummary
+
+#3. Model Building
+
+# in the next step we build  two models using different methodologies: random forest and generalized boosting model. 
+
+# fit a random forest mode and gbm 
+modFit <- train(classe~., data=trainingSet, method="rf", prox=TRUE)
+modFit_gbm <- train(classe~., data=trainingSet, method="gbm", verbose=FALSE)
+
+#4. Analysis of Accuracy
+#1. Random Forest
+Predict_rf <- predict(modFit, validationSet)
+CM_RF <- confusionMatrix(Predict_rf, validationSet$classe)
+CM_RF$overall
+
+#2. GBM Model
+Predict_gbm <- predict(modFit_gbm, validationSet)
+CM_GBM <- confusionMatrix(Predict_gbm, validationSet$classe)
+CM_GBM$overall
+
+# The result shows, that the Random Forest has the better accuracy of the two
+
+CM_RF$table
+CM_GBM$table
+# Lets do some tables to take a look across all classifications. The results show that that the random forest method was better every time.
+
+#5. Predicting for the test set
+# These predictions are using the random forest method to make predictions with the testing set.
+modelPredictions <- predict(modFit, testing)
+cbind(testing[,1:2], classe = modelPredictions)
